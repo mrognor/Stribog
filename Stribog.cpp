@@ -155,7 +155,8 @@ inline void StribogXor(char* dest, const char* a, const char* b)
 
 inline void StribogPadding(const char* data, char* padding, std::size_t dataLen)
 {
-    memcpy(padding + 64 - dataLen, data, dataLen);
+    // memcpy(padding + 64 - dataLen, data, dataLen);
+    for (int i = 0; i < dataLen; ++i) padding[63 - i] = data[i];
     padding[64 - dataLen - 1] = 1;
     memset(padding, 0, 64 - dataLen - 1);
 }
@@ -354,7 +355,7 @@ std::string Stribog512(const char* m, std::size_t mLen)
     StribogG(h, nullptr, s, h);
 
     std::string res;
-    for (int i = 0; i < 64; ++i) res += CharToHexForm(h[i]);
+    for (int i = 63; i >= 0; --i) res += CharToHexForm(h[i]);
     return res;
 }
 
@@ -388,7 +389,7 @@ int main()
 
     std::cout << Stribog512(arr, 63) << std::endl;
 
-    std::cout << Stribog512("zo") << std::endl;
+    std::cout << Stribog512("cksie pjd ujqls") << std::endl;
     
     // char arr[64];
     // HexStringToCharArray("ddbf4eb3d17755b2f6f29bd9b658f4114449d6ea14f8d7e8e6419e733bef177ee104207d9c78dd7f5f450f709227a719575335a1888acb20336f96d735a1123d", arr);
