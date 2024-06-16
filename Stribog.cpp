@@ -190,6 +190,16 @@ inline void StribogPadding(char* m, const char* data, const std::size_t& dataLen
     memset(m, 0, 64 - dataLen - 1);
 }
 
+inline void StribogIntToArr(char* a, std::size_t num)
+{
+    for (int i = 63; i >= 0; --i)
+    {
+        a[i] = num & 0b11111111;
+        num >>= 8;
+        if (num == 0) break;
+    }
+}
+
 /// \brief The S function of the Stribog algorithm
 /// \param [in, out] a a pointer to a 64-byte array. The result of the operation will be recorded in it
 inline void StribogS(char* a)
@@ -294,22 +304,36 @@ void StribogG(char* dest, const char* n, const char* h, const char* m)
     StribogXor(dest, state, m);
 }
 
-std::string Stribog512(const char* data, std::size_t mLen)
+std::string HashStribog(const char* data, std::size_t dataLen, bool is256)
 {
     char h[64] = {0}, n[64] = {0}, sig[64] = {0}, m[64];
+    if (is256) h[63] = 1;
 
-    StribogPadding(m, data, mLen);  
+    // Check if data longer then 64
+    if (dataLen >= 64)
+    {
+        char stepAddition[64] = {0};
+        StribogIntToArr(stepAddition, 512);
+
+        // Handle all blocks except last
+        for (std::size_t i = 0; i < dataLen >> 6; ++i)
+        {
+            std::cout << (i << 6) << std::endl;
+            StribogG(h, n, h, data + (i << 6));
+            StribogAdd512(n, stepAddition);
+
+                std::cout << "E: ";
+    for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(n[i]) << " ";
+    std::cout << std::endl;
+            StribogAdd512(sig, data + (i << 6));
+        }
+    }
+
+    StribogPadding(m, data + (dataLen & 0b11000000), dataLen & 0b00111111);  
 
     StribogG(h, n, h, m);
 
-    mLen *= 8;
-
-    for (int i = 63; i >= 0; --i)
-    {
-        n[i] = mLen & 0b11111111;
-        mLen >>= 8;
-        if (mLen == 0) break;
-    }
+    StribogIntToArr(n, dataLen << 3);
 
     StribogAdd512(sig, m);
     StribogG(h, nullptr, h, n);
@@ -320,12 +344,27 @@ std::string Stribog512(const char* data, std::size_t mLen)
     return res;
 }
 
+std::string Stribog512(const char* data, std::size_t dataLen)
+{
+    return HashStribog(data, dataLen, false);
+}
+
 std::string Stribog512(const std::string& str)
 {
-    return Stribog512(str.c_str(), str.length());
+    return HashStribog(str.c_str(), str.length(), false);
+}
+
+std::string Stribog256(const char* data, std::size_t dataLen)
+{
+    return HashStribog(data, dataLen, true);
+}
+
+std::string Stribog256(const std::string& str)
+{
+    return HashStribog(str.c_str(), str.length(), true);
 }
 
 int main()
 {
-    std::cout << Stribog512("cksie pjd ujqls") << std::endl;
+    std::cout << Stribog512("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa") << std::endl; 
 }
