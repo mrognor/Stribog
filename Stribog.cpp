@@ -1,7 +1,10 @@
+// Gost: https://rst.gov.ru:8443/file-service/file/load/1699367414693
+
 #include <iostream>
 #include <cstdint>
 #include <cstring>
 
+/// \brief Constants for the S function of the Stribog algorithm
 const unsigned char Pi[256] = {
     0xfc, 0xee, 0xdd, 0x11, 0xcf, 0x6e, 0x31, 0x16, 0xfb, 0xc4, 0xfa, 0xda, 0x23, 0xc5, 0x04, 0x4d,
     0xe9, 0x77, 0xf0, 0xdb, 0x93, 0x2e, 0x99, 0xba, 0x17, 0x36, 0xf1, 0xbb, 0x14, 0xcd, 0x5f, 0xc1,
@@ -21,6 +24,7 @@ const unsigned char Pi[256] = {
     0x59, 0xa6, 0x74, 0xd2, 0xe6, 0xf4, 0xb4, 0xc0, 0xd1, 0x66, 0xaf, 0xc2, 0x39, 0x4b, 0x63, 0xb6
 };
 
+/// \brief Constants for the L function of the Stribog algorithm
 const std::uint64_t A[64] = {
     0x8e20faa72ba0b470, 0x47107ddd9b505a38, 0xad08b0e0c3282d1c, 0xd8045870ef14980e,
     0x6c022c38f90a4c07, 0x3601161cf205268d, 0x1b8e0b0e798c13c8, 0x83478b07b2468764,
@@ -40,6 +44,7 @@ const std::uint64_t A[64] = {
     0x07e095624504536c, 0x8d70c431ac02a736, 0xc83862965601dd1b, 0x641c314b2b8ee083
 };
 
+/// \brief Constants for key expansion in the Stribog algorithm
 const unsigned char C[12][64] = {
     {
         0xb1,0x08,0x5b,0xda,0x1e,0xca,0xda,0xe9,0xeb,0xcb,0x2f,0x81,0xc0,0x65,0x7c,0x1f,
@@ -138,42 +143,72 @@ std::string CharToHexForm(const char& a) noexcept
     return res;
 }
 
+/**
+    \brief A method for adding two arrays
+
+    Arrays of 64 bytes are interpreted as 512 bit numbers and added modulo 512 bits
+
+    \param [in, out] a a pointer to the 64 byte array to which another array will be added. The result after calling the function will be stored with the same pointer
+    \param [in] b a pointer to the 64 byte array to be added
+*/
 inline void StribogAdd512(char *a, const char *b)
 {
     int internal = 0;
     for (int i = 0; i < 64; i++)
     {
+        // Summ 2 new bytes and data from previous summ.
+        // Example: 250 + 10 = 260.In bits: 0001 0000 0100.
+        // 0000 0100 will be saved in current step, 0001 will be added in next iteration
         internal = a[i] + b[i] + (internal >> 8);
         a[i] = internal & 0xff;
     }
 }
 
+/**
+    \brief A method for xor two arrays
+
+    \param [out] dest a pointer to the 64 byte array to which the result will be written
+    \param [in] a a pointer to a 64 byte array that needs to be xor
+    \param [in] b a pointer to a 64 byte array that needs to be xor
+*/
 inline void StribogXor(char* dest, const char* a, const char* b)
 {
     for (int i = 0; i < 64; ++i) dest[i] = a[i] ^ b[i];
 }
 
-inline void StribogPadding(const char* data, char* padding, std::size_t dataLen)
+/**
+    \brief A function for finding padding in the Stribog algorithm
+
+    \param [out] m a pointer to a 64 byte array in which to save the result
+    \param [in] data a pointer to an array of source data
+    \param [in] dataLen length of the data array
+*/
+inline void StribogPadding(char* m, const char* data, const std::size_t& dataLen)
 {
-    // memcpy(padding + 64 - dataLen, data, dataLen);
-    for (int i = 0; i < dataLen; ++i) padding[63 - i] = data[i];
-    padding[64 - dataLen - 1] = 1;
-    memset(padding, 0, 64 - dataLen - 1);
+    for (int i = 0; i < dataLen; ++i) m[63 - i] = data[i];
+    m[64 - dataLen - 1] = 1;
+    memset(m, 0, 64 - dataLen - 1);
 }
 
-inline void StribogSub(char* a)
+/// \brief The S function of the Stribog algorithm
+/// \param [in, out] a a pointer to a 64-byte array. The result of the operation will be recorded in it
+inline void StribogS(char* a)
 {
     for (int i = 0; i < 64; ++i) a[i] = Pi[static_cast<unsigned char>(a[i])];
 }
 
-inline void StribogPermut(char* a)
+/// \brief The P function of the Stribog algorithm
+/// \param [in, out] a a pointer to a 64-byte array. The result of the operation will be recorded in it
+inline void StribogP(char* a)
 {
     for (int i = 0; i < 8; ++i)
         for (int j = i + 1; j < 8; ++j)
             std::swap(a[i * 8 + j], a[j * 8 + i]);
 }
 
-inline void StribogLin(char* a)
+/// \brief The L function of the Stribog algorithm
+/// \param [in, out] a a pointer to a 64-byte array. The result of the operation will be recorded in it
+inline void StribogL(char* a)
 {
     for (int i = 0; i < 64; i += 8)
     {
@@ -199,134 +234,74 @@ inline void StribogLin(char* a)
     }
 }
 
+/// \brief Function for adding a round key
+/// \param [in, out] a a pointer to a 64-byte array. The result of the operation will be recorded in it
+/// \param [in] i index of the round key
 inline void StribogXorKey(char* a, const int& i)
 {
     for (int j = 0; j < 64; ++j) a[j] = a[j] ^ C[i][j];
 
-    // std::cout << "KIB" << i << ": ";
-    // for (int j = 0; j < 64; ++j) std::cout << CharToHexForm(a[j]) << " ";
-    // std::cout << std::endl;
-
-    StribogSub(a);
-
-    // std::cout << "KIS" << i << ": ";
-    // for (int j = 0; j < 64; ++j) std::cout << CharToHexForm(a[j]) << " ";
-    // std::cout << std::endl;
-
-    StribogPermut(a);
-    
-    // std::cout << "KIP" << i << ": ";
-    // for (int j = 0; j < 64; ++j) std::cout << CharToHexForm(a[j]) << " ";
-    // std::cout << std::endl;
-
-    StribogLin(a);
-
-    // std::cout << "KIL" << i << ": ";
-    // for (int j = 0; j < 64; ++j) std::cout << CharToHexForm(a[j]) << " ";
-    // std::cout << std::endl;
+    StribogS(a);
+    StribogP(a);
+    StribogL(a);
 }
 
-void StribogE(char* K, const char* m)
+/// \brief The E function of the Stribog algorithm
+/// \param [in, out] a a pointer to a 64-byte array. The result of the operation will be recorded in it
+/// \param [in] a pointer to a 64-byte array
+void StribogE(char* k, const char* m)
 {
     char state[64];
 
-    StribogXor(state, K, m);
+    StribogXor(state, k, m);
 
     for (int i = 0; i < 12; ++i)
     {
-        // std::cout << "K" << i << ": ";
-        // for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(K[i]) << " ";
-        // std::cout << std::endl;
+        StribogS(state);
+        StribogP(state);
+        StribogL(state);
 
-        // std::cout << "XKM" << i << ": ";
-        // for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(state[i]) << " ";
-        // std::cout << std::endl;
+        StribogXorKey(k, i);
 
-        StribogSub(state);
-        // std::cout << "SXKM" << i << ": ";
-        // for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(state[i]) << " ";
-        // std::cout << std::endl;
-
-        StribogPermut(state);
-        // std::cout << "PSXKM" << i << ": ";
-        // for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(state[i]) << " ";
-        // std::cout << std::endl;
-
-        StribogLin(state);
-        // std::cout << "LPSXKM" << i << ": ";
-        // for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(state[i]) << " ";
-        // std::cout << std::endl;
-
-        StribogXorKey(K, i);
-
-        // std::cout << "K" << i + 1 << ": ";
-        // for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(K[i]) << " ";
-        // std::cout << std::endl;
-        
-        // std::cout << "E" << i + 1 << ": ";
-        // for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(state[i]) << " ";
-        // std::cout << std::endl;
-
-        StribogXor(state, state, K);
+        StribogXor(state, state, k);
     }
-    memcpy(K, state, 64);
-}
-
-void StribogG(char* dest, const char* N, const char* m, const char* h)
-{
-    char internal[64];
-
-    if (N != nullptr) StribogXor(internal, N, h);
-    else memcpy(internal, h, 64);
-
-    // std::cout << "B: ";
-    // for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(dest[i]) << " ";
-    // std::cout << std::endl;
-
-    StribogSub(internal);
     
-    // std::cout << "S: ";
-    // for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(dest[i]) << " ";
-    // std::cout << std::endl;
-
-    StribogPermut(internal);
-
-    // std::cout << "P: ";
-    // for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(dest[i]) << " ";
-    // std::cout << std::endl;
-
-    StribogLin(internal);
-
-    // std::cout << "L: ";
-    // for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(dest[i]) << " ";
-    // std::cout << std::endl;
-
-    StribogE(internal, m);
-
-    // std::cout << "E: ";
-    // for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(internal[i]) << " ";
-    // std::cout << std::endl;
-
-    StribogXor(internal, internal, h);
-    StribogXor(dest, internal, m);
+    memcpy(k, state, 64);
 }
 
-std::string Stribog512(const char* m, std::size_t mLen)
+/**
+    \brief The G function of the Stribog algorithm
+
+    \param [out] dest a pointer to a 64-byte array. The result of the operation will be recorded in it
+    \param [in] n pointer to a 64-byte array
+    \param [in] h pointer to a 64-byte array
+    \param [in] m pointer to a 64-byte array
+*/
+void StribogG(char* dest, const char* n, const char* h, const char* m)
 {
-    char n[64] = {0}, s[64] = {0}, h[64] = {0};
+    char state[64];
 
-    char padding[64];
-    StribogPadding(m, padding, mLen);  
-    for (int i = 0; i < 64; ++i) std::cout << (int)(unsigned char)padding[i] << " ";
-    std::cout << std::endl;
+    if (n != nullptr) StribogXor(state, n, h);
+    else memcpy(state, h, 64);
 
-    StribogG(h, n, padding, h);
+    StribogS(state);
+    StribogP(state);
+    StribogL(state);
 
-    // std::cout << "G: ";
-    // for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(h[i]) << " ";
-    // std::cout << std::endl;
+    StribogE(state, m);
 
-    // Длина сообщения в битах. Младщий бит справа
+    StribogXor(state, state, h);
+    StribogXor(dest, state, m);
+}
+
+std::string Stribog512(const char* data, std::size_t mLen)
+{
+    char h[64] = {0}, n[64] = {0}, sig[64] = {0}, m[64];
+
+    StribogPadding(m, data, mLen);  
+
+    StribogG(h, n, h, m);
+
     mLen *= 8;
 
     for (int i = 63; i >= 0; --i)
@@ -336,23 +311,9 @@ std::string Stribog512(const char* m, std::size_t mLen)
         if (mLen == 0) break;
     }
 
-    StribogAdd512(s, padding);
-
-    std::cout << "N: ";
-    for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(n[i]) << " ";
-    std::cout << std::endl;
-
-    std::cout << "s: ";
-    for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(s[i]) << " ";
-    std::cout << std::endl;
-
-    StribogG(h, nullptr, n, h);
-
-    std::cout << "h: ";
-    for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(h[i]) << " ";
-    std::cout << std::endl;
-
-    StribogG(h, nullptr, s, h);
+    StribogAdd512(sig, m);
+    StribogG(h, nullptr, h, n);
+    StribogG(h, nullptr, h, sig);
 
     std::string res;
     for (int i = 63; i >= 0; --i) res += CharToHexForm(h[i]);
@@ -364,43 +325,7 @@ std::string Stribog512(const std::string& str)
     return Stribog512(str.c_str(), str.length());
 }
 
-void HexStringToCharArray(const std::string& str, char* arr)
-{
-    for (std::size_t i = 0; i < str.length(); i += 2)
-    {
-        char c;
-
-        if(str[i] >= '0' && str[i] <= '9') c = 16 * (str[i] - '0');
-        else c = 16 * (str[i] - 'a' + 10);
-        
-        if(str[i + 1] >= '0' && str[i + 1] <= '9') c += (str[i + 1] - '0');
-        else c += str[i + 1] - 'a' + 10;
-
-        arr[i >> 1] = c;
-    }
-}
-
 int main()
 {
-    char arr[64];
-    HexStringToCharArray("323130393837363534333231303938373635343332313039383736353433323130393837363534333231303938373635343332313039383736353433323130", arr);
-    for (int i = 0; i < 64; ++i) std::cout << (int)(unsigned char)arr[i] << " ";
-    std::cout << std::endl;
-
-    std::cout << Stribog512(arr, 63) << std::endl;
-
     std::cout << Stribog512("cksie pjd ujqls") << std::endl;
-    
-    // char arr[64];
-    // HexStringToCharArray("ddbf4eb3d17755b2f6f29bd9b658f4114449d6ea14f8d7e8e6419e733bef177ee104207d9c78dd7f5f450f709227a719575335a1888acb20336f96d735a1123d", arr);
-    // for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(arr[i]);
-    // std::cout << std::endl;
-
-    // StribogLin(arr);
-    // for (int i = 0; i < 64; ++i) 
-    // {
-    //     if (i != 0 && i % 8 == 0) std::cout << " ";
-    //     std::cout << CharToHexForm(arr[i]);
-    // }
-    // std::cout << std::endl;
 }
