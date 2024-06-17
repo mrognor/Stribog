@@ -273,14 +273,6 @@ void StribogE(char* k, const char* m)
 
         StribogXorKey(k, i);
 
-        // std::cout << "k: ";
-        // for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(k[i]) << " ";
-        //     std::cout << std::endl;
-
-        // std::cout << "s: ";
-        // for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(state[i]) << " ";
-        //     std::cout << std::endl;
-
         StribogXor(state, state, k);
     }
     
@@ -318,8 +310,9 @@ void StribogG(char* dest, const char* n, const char* h, const char* m)
 
 std::string HashStribog(const char* data, std::size_t dataLen, bool is256)
 {
-    char h[64] = {0}, n[64] = {0}, sig[64] = {0}, m[64];
-    if (is256) h[63] = 1;
+    char h[64], n[64] = {0}, sig[64] = {0}, m[64];
+    if (is256) memset(h, 1, 64);
+    else memset(h, 0, 64);
 
     // Check if data longer then 64
     if (dataLen >= 64)
@@ -333,8 +326,8 @@ std::string HashStribog(const char* data, std::size_t dataLen, bool is256)
             char d[64];
             for (int j = 0; j < 64; ++j) d[j] = data[(((i + 1) * 64) - 1) - j];
 
-            for (int j = 0; j < 64; ++j) std::cout << data[(((i + 1) * 64) - 1) - j] << " ";
-            std::cout << std::endl;
+            // for (int j = 0; j < 64; ++j) std::cout << data[(((i + 1) * 64) - 1) - j] << " ";
+            // std::cout << std::endl;
 
             StribogG(h, n, h, d);
 
@@ -344,13 +337,13 @@ std::string HashStribog(const char* data, std::size_t dataLen, bool is256)
         }
     }
 
-    // std::cout << "n: ";
-    // for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(n[i]) << " ";
-    //     std::cout << std::endl;
+    // // std::cout << "n: ";
+    // // for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(n[i]) << " ";
+    // //     std::cout << std::endl;
 
-    // std::cout << "s: ";
-    // for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(sig[i]) << " ";
-    //     std::cout << std::endl;
+    // // std::cout << "s: ";
+    // // for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(sig[i]) << " ";
+    // //     std::cout << std::endl;
 
     StribogPadding(m, data + (dataLen & 0b11000000), dataLen & 0b00111111);  
 
@@ -362,10 +355,6 @@ std::string HashStribog(const char* data, std::size_t dataLen, bool is256)
 
     StribogIntToArr(n, dataLen << 3);
 
-    std::cout << "ln: ";
-    for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(n[i]) << " ";
-        std::cout << std::endl;
-
     // std::cout << "m: ";
     // for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(m[i]) << " ";
     //     std::cout << std::endl;
@@ -376,15 +365,25 @@ std::string HashStribog(const char* data, std::size_t dataLen, bool is256)
 
     StribogAdd512(sig, m);
 
-    // std::cout << "s: ";
+    // std::cout << "S: ";
     // for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(sig[i]) << " ";
     //     std::cout << std::endl;
 
     StribogG(h, nullptr, h, n);
+
+    //     std::cout << "h: ";
+    // for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(h[i]) << " ";
+    //     std::cout << std::endl;
+
     StribogG(h, nullptr, h, sig);
 
+    // std::cout << "h: ";
+    // for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(h[i]) << " ";
+    //     std::cout << std::endl;
+
     std::string res;
-    for (int i = 63; i >= 0; --i) res += CharToHexForm(h[i]);
+    if (is256) for (int i = 31; i >= 0; --i) res += CharToHexForm(h[i]);
+    else for (int i = 63; i >= 0; --i) res += CharToHexForm(h[i]);
     return res;
 }
 
@@ -426,13 +425,13 @@ void HexStringToCharArray(const std::string& str, char* arr)
 
 int main()
 {
-    // char arr[72], arr2[72];
-    // HexStringToCharArray("fbe2e5f0eee3c820fbeafaebef20fffbf0e1e0f0f520e0ed20e8ece0ebe5f0f2f120fff0eeec20f120faf2fee5e2202ce8f6f3ede220e8e6eee1e8f0f2d1202ce8f0f2e5e220e5d1", arr);
-    // for (int i = 0; i < 72; ++i) arr2[71 - i] = arr[i];
-    // for (int i = 0; i < 72; ++i) std::cout << CharToHexForm(arr2[i]);
+    // char arr[63], arr2[63];
+    // HexStringToCharArray("323130393837363534333231303938373635343332313039383736353433323130393837363534333231303938373635343332313039383736353433323130", arr);
+    // for (int i = 0; i < 63; ++i) arr2[62 - i] = arr[i];
+    // for (int i = 0; i < 63; ++i) std::cout << CharToHexForm(arr2[i]);
     // std::cout << std::endl;
 
-    // std::cout << Stribog512(arr2, 72) << std::endl;
+    // std::cout << Stribog256(arr2, 63) << std::endl;
 
-    std::cout << Stribog256("zov") << std::endl;
+    std::cout << Stribog256("drI57JQ5T8U8dipBv5D3DCYg2kTLMif0U4DRWIglxw6g9u9h9BPrXDpa7a155PUnC5zll1FyNGiybXs0S5pXZryYQR2Tu7SvRe2QH33Wn7JfOzlEpgPeizzeikraXXBmkyuDLeSeoTaswqzzGYTC4XUxHdCNR81hB1rdl15Q9lJLFqaHeIEddPSyI8wpnrsviOJPVH2GGMvEctJ4tm4XD0PyysznYpi5PaNYBICe2jzzD47YVBpn2NZYBDvtFzrVZ") << std::endl;
 }
