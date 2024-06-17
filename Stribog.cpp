@@ -154,12 +154,12 @@ std::string CharToHexForm(const char& a) noexcept
 inline void StribogAdd512(char *a, const char *b)
 {
     int internal = 0;
-    for (int i = 0; i < 64; i++)
+    for (int i = 63; i >= 0; --i)
     {
         // Summ 2 new bytes and data from previous summ.
         // Example: 250 + 10 = 260.In bits: 0001 0000 0100.
         // 0000 0100 will be saved in current step, 0001 will be added in next iteration
-        internal = a[i] + b[i] + (internal >> 8);
+        internal = static_cast<unsigned char>(a[i]) + static_cast<unsigned char>(b[i]) + (internal >> 8);
         a[i] = internal & 0xff;
     }
 }
@@ -238,7 +238,7 @@ inline void StribogL(char* a)
 
         for (int j = 7; j >= 0; --j)
         {
-            a[i + j] = static_cast<char>(stateChunkOut & 0b11111111);
+            a[i + j] = static_cast<unsigned char>(stateChunkOut & 0b11111111);
             stateChunkOut >>= 8;
         }
     }
@@ -273,6 +273,14 @@ void StribogE(char* k, const char* m)
 
         StribogXorKey(k, i);
 
+        // std::cout << "k: ";
+        // for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(k[i]) << " ";
+        //     std::cout << std::endl;
+
+        // std::cout << "s: ";
+        // for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(state[i]) << " ";
+        //     std::cout << std::endl;
+
         StribogXor(state, state, k);
     }
     
@@ -300,6 +308,10 @@ void StribogG(char* dest, const char* n, const char* h, const char* m)
 
     StribogE(state, m);
 
+    // std::cout << "e: ";
+    // for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(state[i]) << " ";
+    //     std::cout << std::endl;
+
     StribogXor(state, state, h);
     StribogXor(dest, state, m);
 }
@@ -318,24 +330,56 @@ std::string HashStribog(const char* data, std::size_t dataLen, bool is256)
         // Handle all blocks except last
         for (std::size_t i = 0; i < dataLen >> 6; ++i)
         {
-            std::cout << (i << 6) << std::endl;
-            StribogG(h, n, h, data + (i << 6));
+            char d[64];
+            for (int j = 0; j < 64; ++j) d[j] = data[(((i + 1) * 64) - 1) - j];
+
+            for (int j = 0; j < 64; ++j) std::cout << data[(((i + 1) * 64) - 1) - j] << " ";
+            std::cout << std::endl;
+
+            StribogG(h, n, h, d);
+
             StribogAdd512(n, stepAddition);
 
-                std::cout << "E: ";
-    for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(n[i]) << " ";
-    std::cout << std::endl;
-            StribogAdd512(sig, data + (i << 6));
+            StribogAdd512(sig, d);
         }
     }
+
+    // std::cout << "n: ";
+    // for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(n[i]) << " ";
+    //     std::cout << std::endl;
+
+    // std::cout << "s: ";
+    // for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(sig[i]) << " ";
+    //     std::cout << std::endl;
 
     StribogPadding(m, data + (dataLen & 0b11000000), dataLen & 0b00111111);  
 
     StribogG(h, n, h, m);
 
+    // std::cout << "h: ";
+    // for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(h[i]) << " ";
+    //     std::cout << std::endl;
+
     StribogIntToArr(n, dataLen << 3);
 
+    std::cout << "ln: ";
+    for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(n[i]) << " ";
+        std::cout << std::endl;
+
+    // std::cout << "m: ";
+    // for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(m[i]) << " ";
+    //     std::cout << std::endl;
+
+    // std::cout << "s: ";
+    // for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(sig[i]) << " ";
+    //     std::cout << std::endl;
+
     StribogAdd512(sig, m);
+
+    // std::cout << "s: ";
+    // for (int i = 0; i < 64; ++i) std::cout << CharToHexForm(sig[i]) << " ";
+    //     std::cout << std::endl;
+
     StribogG(h, nullptr, h, n);
     StribogG(h, nullptr, h, sig);
 
@@ -364,7 +408,31 @@ std::string Stribog256(const std::string& str)
     return HashStribog(str.c_str(), str.length(), true);
 }
 
+void HexStringToCharArray(const std::string& str, char* arr)
+{
+    for (std::size_t i = 0; i < str.length(); i += 2)
+    {
+        char c;
+
+        if(str[i] >= '0' && str[i] <= '9') c = 16 * (str[i] - '0');
+        else c = 16 * (str[i] - 'a' + 10);
+        
+        if(str[i + 1] >= '0' && str[i + 1] <= '9') c += (str[i + 1] - '0');
+        else c += str[i + 1] - 'a' + 10;
+
+        arr[i >> 1] = c;
+    }
+}
+
 int main()
 {
-    std::cout << Stribog512("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa") << std::endl; 
+    // char arr[72], arr2[72];
+    // HexStringToCharArray("fbe2e5f0eee3c820fbeafaebef20fffbf0e1e0f0f520e0ed20e8ece0ebe5f0f2f120fff0eeec20f120faf2fee5e2202ce8f6f3ede220e8e6eee1e8f0f2d1202ce8f0f2e5e220e5d1", arr);
+    // for (int i = 0; i < 72; ++i) arr2[71 - i] = arr[i];
+    // for (int i = 0; i < 72; ++i) std::cout << CharToHexForm(arr2[i]);
+    // std::cout << std::endl;
+
+    // std::cout << Stribog512(arr2, 72) << std::endl;
+
+    std::cout << Stribog256("zov") << std::endl;
 }
