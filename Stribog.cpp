@@ -3,6 +3,11 @@
 #include <iostream>
 #include <cstdint>
 #include <cstring>
+#include <fstream>
+
+// Define the block size for working with files
+// Must be multiple 64
+#define CHUNK_SIZE 4096
 
 /// \brief Constants for the S function of the Stribog algorithm
 const unsigned char Pi[256] = {
@@ -212,6 +217,12 @@ inline void StribogAdd512(char *a, const char *b)
     }
 }
 
+/**
+    \brief A method for adding an array with a number modulo 512
+
+    \param [in, out] a a pointer to a 64-byte array to add a number to
+    \param [in] b the number to add to the array
+*/
 inline void StribogAdd512(char *a, int c)
 {
     int internal = 0;
@@ -246,7 +257,7 @@ inline void StribogPadding(char* m, const char* data, const std::size_t& dataLen
 {
     memcpy(m, data, dataLen);
     m[dataLen] = 1;
-    memset(m + dataLen + 1, 0, 64 - dataLen);
+    memset(m + dataLen + 1, 0, 63 - dataLen);
 }
 
 /// \brief The S function of the Stribog algorithm
@@ -353,7 +364,7 @@ void StribogG(char* dest, const char* n, const char* h, const char* m)
     StribogXor(dest, state, m);
 }
 
-std::string HashStribog(const char* data, std::size_t dataLen, bool is256)
+std::string HashStribog(const char* data, std::size_t dataLen, const bool& is256)
 {
     char h[64], n[64] = {0}, sig[64] = {0}, m[64];
     if (is256) memset(h, 1, 64);
@@ -366,23 +377,81 @@ std::string HashStribog(const char* data, std::size_t dataLen, bool is256)
         for (std::size_t i = 0; i < dataLen >> 6; ++i)
         {
             StribogG(h, n, h, data + (i << 6));
-
             StribogAdd512(n, 512);
-
             StribogAdd512(sig, data + (i << 6));
         }
     }
 
-    StribogPadding(m, data + (dataLen & ~0b00111111), dataLen & 0b00111111);  
-
+    StribogPadding(m, data + (dataLen & ~0b00111111), dataLen & 0b00111111);
     StribogG(h, n, h, m);
-
     StribogAdd512(n, (dataLen << 3) & 0b111111111);
-
     StribogAdd512(sig, m);
-
     StribogG(h, nullptr, h, n);
+    StribogG(h, nullptr, h, sig);
 
+    std::string res;
+    if (is256) for (int i = 0; i < 32; ++i) res += CharToHexForm(h[i]);
+    else for (int i = 0; i < 64; ++i) res += CharToHexForm(h[i]);
+    return res;
+}
+
+std::string HashFileStribog(std::ifstream& file, const bool& is256)
+{
+    char h[64], n[64] = {0}, sig[64] = {0}, m[64];
+    if (is256) memset(h, 1, 64);
+    else memset(h, 0, 64);
+
+    // Save file size
+    uint64_t fileSize = file.tellg();
+    file.seekg(0);
+
+    // Arrays to read 4kb from file and to save 4 kb to file
+    char fileDataChunk[CHUNK_SIZE];
+
+    // Counter for file reading
+    std::size_t counter = 0;
+
+    // Checking whether the file is larger than the size of the file processing chunks
+    if (fileSize > CHUNK_SIZE)
+    {
+        // Processing the part of the file that is a multiple of the chunk size
+        for(; counter < fileSize - CHUNK_SIZE; counter += CHUNK_SIZE)
+        {
+            // Read chunk from input file
+            file.read(fileDataChunk, CHUNK_SIZE);
+
+            // Calculate hash steps
+            for (std::size_t i = 0; i < CHUNK_SIZE >> 6; i += 1)
+            {
+                StribogG(h, n, h, fileDataChunk + (i << 6));
+                StribogAdd512(n, 512);
+                StribogAdd512(sig, fileDataChunk + (i << 6));
+            }
+        }
+    }
+
+    // Calculating the remaining bytes in the file
+    counter = fileSize - counter;
+
+    // Read last bytes from input file
+    file.read(fileDataChunk, counter);
+
+    // Calculate hash for last bytes
+    for (uint64_t i = 0; i < counter >> 6; ++i)
+    {
+        StribogG(h, n, h, fileDataChunk + (i << 6));
+        StribogAdd512(n, 512);
+        StribogAdd512(sig, fileDataChunk + (i << 6));
+    }
+
+    // Padding source file
+    // Move fileDataChunk ptr to last position multiply by 64
+    char padding[128];
+    StribogPadding(m, fileDataChunk + (counter & ~0b00111111), counter & 0b00111111);  ;
+    StribogG(h, n, h, m);
+    StribogAdd512(n, (counter << 3) & 0b111111111);
+    StribogAdd512(sig, m);
+    StribogG(h, nullptr, h, n);
     StribogG(h, nullptr, h, sig);
 
     std::string res;
@@ -401,6 +470,15 @@ std::string Stribog512(const std::string& str)
     return HashStribog(str.c_str(), str.length(), false);
 }
 
+std::string FileStribog512(const std::string fileName)
+{
+    // Open file
+    std::ifstream file(fileName, std::ios_base::binary | std::ios_base::ate);
+    if (!file.is_open()) {std::cerr << "Can not open file: " << fileName << std::endl; return "";}
+
+    return HashFileStribog(file, false);
+}
+
 std::string Stribog256(const char* data, std::size_t dataLen)
 {
     return HashStribog(data, dataLen, true);
@@ -411,7 +489,20 @@ std::string Stribog256(const std::string& str)
     return HashStribog(str.c_str(), str.length(), true);
 }
 
+std::string FileStribog256(const std::string fileName)
+{
+    // Open file
+    std::ifstream file(fileName, std::ios_base::binary | std::ios_base::ate);
+    if (!file.is_open()) {std::cerr << "Can not open file: " << fileName << std::endl; return "";}
+
+    return HashFileStribog(file, true);
+}
+
 int main()
 {
     std::cout << Stribog512("test") << std::endl;
+    std::cout << FileStribog512("file") << std::endl;
+
+    std::cout << Stribog256("test") << std::endl;
+    std::cout << FileStribog256("file") << std::endl;
 }
