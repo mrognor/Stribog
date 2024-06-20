@@ -364,6 +364,15 @@ void StribogG(char* dest, const char* n, const char* h, const char* m)
     StribogXor(dest, state, m);
 }
 
+/**
+    \brief A function for calculating the hash using the stribog algorithm
+
+    \param [in] data A pointer to the char array to calculate the hash for
+    \param [in] dataLen Length of the data array
+    \param [in] is256 A variable for specifying the bit depth of the algorithm version
+
+    \return a string with a stribog hash sum
+*/
 std::string HashStribog(const char* data, std::size_t dataLen, const bool& is256)
 {
     char h[64], n[64] = {0}, sig[64] = {0}, m[64];
@@ -395,6 +404,14 @@ std::string HashStribog(const char* data, std::size_t dataLen, const bool& is256
     return res;
 }
 
+/**
+    \brief A function for calculating the hash using the stribog algorithm
+
+    \param [in] file the file to calculate the hash for
+    \param [in] is256 A variable for specifying the bit depth of the algorithm version
+
+    \return a string with a stribog hash sum
+*/
 std::string HashFileStribog(std::ifstream& file, const bool& is256)
 {
     char h[64], n[64] = {0}, sig[64] = {0}, m[64];
@@ -460,16 +477,38 @@ std::string HashFileStribog(std::ifstream& file, const bool& is256)
     return res;
 }
 
+/**
+    \brief A function for calculating the hash using the stribog 512 algorithm
+
+    \param [in] data A pointer to the char array to calculate the hash for
+    \param [in] dataLen Length of the data array
+
+    \return a string with a stribog 512 hash sum
+*/
 std::string Stribog512(const char* data, std::size_t dataLen)
 {
     return HashStribog(data, dataLen, false);
 }
 
+/**
+    \brief A function for calculating the hash using the stribog 512 algorithm
+
+    \param [in] str the string to calculate the hash for
+
+    \return a string with a stribog 512 hash sum
+*/
 std::string Stribog512(const std::string& str)
 {
     return HashStribog(str.c_str(), str.length(), false);
 }
 
+/**
+    \brief A function for calculating the hash using the stribog 512 algorithm
+
+    \param [in] fileName the name of the file to calculate the hash for
+
+    \return a string with a stribog 512 hash sum. If the file could not be opened, it will return an empty string
+*/
 std::string FileStribog512(const std::string fileName)
 {
     // Open file
@@ -479,16 +518,38 @@ std::string FileStribog512(const std::string fileName)
     return HashFileStribog(file, false);
 }
 
+/**
+    \brief A function for calculating the hash using the stribog 256 algorithm
+
+    \param [in] data A pointer to the char array to calculate the hash for
+    \param [in] dataLen Length of the data array
+
+    \return a string with a stribog 256 hash sum
+*/
 std::string Stribog256(const char* data, std::size_t dataLen)
 {
     return HashStribog(data, dataLen, true);
 }
 
+/**
+    \brief A function for calculating the hash using the stribog 256 algorithm
+
+    \param [in] str the string to calculate the hash for
+
+    \return a string with a stribog 256 hash sum
+*/
 std::string Stribog256(const std::string& str)
 {
     return HashStribog(str.c_str(), str.length(), true);
 }
 
+/**
+    \brief A function for calculating the hash using the stribog 256 algorithm
+
+    \param [in] fileName the name of the file to calculate the hash for
+
+    \return a string with a stribog 256 hash sum. If the file could not be opened, it will return an empty string
+*/
 std::string FileStribog256(const std::string fileName)
 {
     // Open file
